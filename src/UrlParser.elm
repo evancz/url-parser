@@ -49,6 +49,9 @@ parse input (Parser actuallyParse) url =
         [] ->
           Ok result
 
+        [""] ->
+          Ok result
+
         _ ->
           Err <|
             "The parser worked, but /"
