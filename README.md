@@ -4,6 +4,8 @@ This library helps you turn URLs into nicely structured data.
 
 It is designed to be used with `elm-lang/navigation` to help folks create single-page applications (SPAs) where you manage browser navigation yourself.
 
+> **Note:** This library is meant to serve as a baseline for future URL parsers. For example, it does not handle query parameters and hashes right now. It is more to (1) get folks started using URL parsers and (2) help us gather data on exactly which scenarios people face.
+
 
 ## Examples
 
