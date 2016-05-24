@@ -1,6 +1,6 @@
 {
     "version": "1.0.0",
-    "summary": "",
+    "summary": "Parse URLs into nicely structured data, useful for navigation / \"SPA routing\"",
     "repository": "https://github.com/evancz/url-parser.git",
     "license": "BSD3",
     "source-directories": [
