@@ -34,9 +34,15 @@ import String
 {-| A `Parser` is a way of turning a URL like `/blog/42/cat-herding-techniques`
 into structured data.
 
-The two type variables can be a bit tricky to understand, but the fastest way
-to gain mastery is to not worry about it and just use the library. Experience
-with `(</>)` will help.
+The two type variables can be a bit tricky to understand. I think the best way
+to proceed is to just start using it. You can go far if you just assume it will
+do the intuitive thing.
+
+**Note:** If you *insist* on digging deeper, I recommend figuring out the type
+of `int </> int` based on the type signatures for `int` and `</>`. You may be
+able to just know based on intuition, but instead, you should figure out
+exactly how every type variable gets unified. It is pretty cool! From there,
+maybe check out the implementation a bit.
 -}
 type Parser formatter result =
   Parser (Chunks -> formatter -> Result String (Chunks, result))
