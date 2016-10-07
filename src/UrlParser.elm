@@ -6,7 +6,6 @@ module UrlParser exposing
   , oneOf, format, custom
   , parse
   )
-  -- where
 
 {-| This library helps you turn URLs into nicely structured data.
 
@@ -230,9 +229,7 @@ parsers in parent modules.
 (</>) (Parser parseFirst) (Parser parseRest) =
   Parser <| \chunks func ->
     parseFirst chunks func
-      `Result.andThen` \(nextChunks, nextFunc) ->
-
-    parseRest nextChunks nextFunc
+      |> Result.andThen (\(nextChunks, nextFunc) -> parseRest nextChunks nextFunc)
 
 
 {-| Try a bunch of parsers one at a time. This is useful when there is a known
