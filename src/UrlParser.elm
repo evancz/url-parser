@@ -1,28 +1,29 @@
 module UrlParser exposing
-  ( Parser
-  , s
-  , string, int
-  , (</>)
-  , oneOf, format, custom
-  , parse
+  ( Parser, string, int, s
+  , (</>), map, oneOf, top, custom
+  , QueryParser, (<?>), stringParam, intParam, customParam
+  , parsePath, parseHash
   )
 
-{-| This library helps you turn URLs into nicely structured data.
+{-|
 
-It is designed to be used with `elm-lang/navigation` to help folks create
-single-page applications (SPAs) where you manage browser navigation yourself.
+# Primitives
+@docs Parser, string, int, s
 
-# Parsers
-@docs Parser, s, string, int
+# Path Parses
+@docs (</>), map, oneOf, top, custom
 
-# Combining Parsers
-@docs (</>), oneOf, format, custom
+# Query Parameter Parsers
+@docs QueryParser, (<?>), stringParam, intParam, customParam
 
-# Run Parsers
-@docs parse
+# Run a Parser
+@docs parsePath, parseHash
 
 -}
 
+import Dict exposing (Dict)
+import Http
+import Navigation
 import String
 
 
@@ -30,267 +31,226 @@ import String
 -- PARSERS
 
 
-{-| A `Parser` is a way of turning a URL like `/blog/42/cat-herding-techniques`
-into structured data.
-
-The two type variables can be a bit tricky to understand. I think the best way
-to proceed is to just start using it. You can go far if you just assume it will
-do the intuitive thing.
-
-**Note:** If you *insist* on digging deeper, I recommend figuring out the type
-of `int </> int` based on the type signatures for `int` and `</>`. You may be
-able to just know based on intuition, but instead, you should figure out
-exactly how every type variable gets unified. It is pretty cool! From there,
-maybe check out the implementation a bit.
+{-| Turn URLs like `/blog/42/cat-herding-techniques` into nice Elm data.
 -}
-type Parser formatter result =
-  Parser (Chunks -> formatter -> Result String (Chunks, result))
+type Parser a b =
+  Parser (State a -> List (State b))
 
 
-type alias Chunks =
-  { seen : List String
-  , rest : List String
+type alias State value =
+  { visited : List String
+  , unvisited : List String
+  , params : Dict String String
+  , value : value
   }
-
-
-{-| Actually run a parser. For example, if we want to handle blog posts with
-an ID number and a name, we might write something like this:
-
-    blog : Parser (Int -> String -> a) a
-    blog =
-      s "blog" </> int </> string
-
-    result : Result String (Int, String)
-    result =
-      parse (,) blog "blog/42/cat-herding-techniques"
-
-    -- result == OK (42, "cat-herding-techniques")
-
-Notice that we use the `(,)` function for building tuples as the first argument
-to `parse`. The `blog` parser requires a formatter of type `(Int -> String -> a)`
-so we need to provide that to actually run things.
-
-**Note:** The error messages are intended to be fairly helpful. They are
-nice for debugging during development, but probably too detailed to show
-directly to users.
--}
-parse : formatter -> Parser formatter a -> String -> Result String a
-parse input (Parser actuallyParse) url =
-  case actuallyParse (Chunks [] (String.split "/" url)) input of
-    Err msg ->
-      Err msg
-
-    Ok ({rest}, result) ->
-      case rest of
-        [] ->
-          Ok result
-
-        [""] ->
-          Ok result
-
-        _ ->
-          Err <|
-            "The parser worked, but /"
-            ++ String.join "/" rest ++ " was left over."
 
 
 
 -- PARSE SEGMENTS
 
 
-{-| A parser that matches *exactly* the given string. So the following parser
-will match the URL `/hello/world` and nothing else:
-
-    helloWorld : Parser a a
-    helloWorld =
-      s "hello" </> s "world"
--}
-s : String -> Parser a a
-s str =
-  Parser <| \{seen,rest} result ->
-    case rest of
-      [] ->
-        Err ("Got to the end of the URL but wanted /" ++ str)
-
-      chunk :: remaining ->
-        if chunk == str then
-          Ok ( Chunks (chunk :: seen) remaining, result )
-
-        else
-          Err ("Wanted /" ++ str ++ " but got /" ++ String.join "/" rest)
-
-
-{-| A parser that matches any string. So the following parser will match
-URLs like `/search/whatever` where `whatever` can be replaced by any string
-you can imagine.
-
-    search : Parser (String -> a) a
-    search =
-      s "search" </> string
-
-**Note:** this parser will only match URLs with exactly two segments. So things
-like `/search/this/that` would fail. You could use `search </> string` to handle
-that case if you wanted though!
--}
 string : Parser (String -> a) a
 string =
   custom "STRING" Ok
 
-
-{-| A parser that matches any integer. So the following parser will match
-URLs like `/blog/42` where `42` can be replaced by any positive number.
-
-    blog : Parser (Int -> a) a
-    blog =
-      s "blog" </> int
-
-**Note:** this parser will only match URLs with exactly two segments. So things
-like `/blog/42/cat-herding-techniques` would fail. You could use `blog </> string`
-to handle that scenario if you wanted though!
--}
 
 int : Parser (Int -> a) a
 int =
   custom "NUMBER" String.toInt
 
 
-{-| Create a custom segment parser. The `int` and `string` parsers are actually
-defined with it like this:
+s : String -> Parser a a
+s str =
+  Parser <| \{ visited, unvisited, params, value } ->
+    case unvisited of
+      [] ->
+        []
 
-    import String
-
-    string : Parser (String -> a) a
-    string =
-      custom "STRING" Ok
-
-    int : Parser (Int -> a) a
-    int =
-      custom "NUMBER" String.toInt
-
-The first argument is to help with error messages. It lets us say something
-like, &ldquo;Got to the end of the URL but wanted /STRING&rdquo; instead of
-something totally nonspecific. The second argument lets you process the URL
-segment however you want.
-
-An example usage would be a parser that only accepts segments with a particular
-file extension. So stuff like this:
-
-    css : Parser (String -> a) a
-    css =
-      custom "FILE.css" <| \str ->
-        if String.endsWith ".css" str then
-          Ok str
+      next :: rest ->
+        if next == str then
+          [ State (next :: visited) rest params value ]
 
         else
-          Err "Need something that ends with .css"
--}
-custom : String -> (String -> Result String a) -> Parser (a -> output) output
-custom tipe stringToSomething =
-  Parser <| \{seen,rest} func ->
-    case rest of
-      [] ->
-        Err ("Got to the end of the URL but wanted /" ++ tipe)
+          []
 
-      chunk :: remaining ->
-        case stringToSomething chunk of
-          Ok something ->
-            Ok ( Chunks (chunk :: seen) remaining, func something )
+
+custom : String -> (String -> Result String a) -> Parser (a -> b) b
+custom tipe stringToSomething =
+  Parser <| \{ visited, unvisited, params, value } ->
+    case unvisited of
+      [] ->
+        []
+
+      next :: rest ->
+        case stringToSomething next of
+          Ok nextValue ->
+            [ State (next :: visited) rest params (value nextValue) ]
 
           Err msg ->
-            Err ("Parsing `" ++ chunk ++ "` went wrong: " ++ msg)
+            []
 
 
 
 -- COMBINING PARSERS
 
 
-infixr 8 </>
+infixr 7 </>
 
 
-{-| Combine parsers. It can be used to combine very simple building blocks
-like this:
-
-    hello : Parser (String -> a) a
-    hello =
-      s "hello" </> string
-
-So we can say hello to whoever we want. It can also be used to put together
-arbitrarily complex parsers, so you *could* say something like this too:
-
-    doubleHello : Parser (String -> String -> a) a
-    doubleHello =
-      hello </> hello
-
-This would match URLs like `/hello/alice/hello/bob`. The point is more that you
-can build complex URL parsers in submodules and then put them on the end of
-parsers in parent modules.
--}
 (</>) : Parser a b -> Parser b c -> Parser a c
-(</>) (Parser parseFirst) (Parser parseRest) =
-  Parser <| \chunks func ->
-    parseFirst chunks func
-      |> Result.andThen (\(nextChunks, nextFunc) -> parseRest nextChunks nextFunc)
+(</>) (Parser parseBefore) (Parser parseAfter) =
+  Parser <| \state ->
+    List.concatMap parseAfter (parseBefore state)
 
 
-{-| Try a bunch of parsers one at a time. This is useful when there is a known
-set of branches that are possible. For example, maybe we have a website that
-just has a blog and a search:
+map : a -> Parser a b -> Parser (b -> c) c
+map subValue (Parser parse) =
+  Parser <| \{ visited, unvisited, params, value } ->
+    List.map (mapHelp value) <| parse <|
+      { visited = visited
+      , unvisited = unvisited
+      , params = params
+      , value = subValue
+      }
 
-    type DesiredPage = Blog Int | Search String
 
-    desiredPage : Parser (DesiredPage -> a) a
-    desiredPage =
-      oneOf
-        [ format Blog (s "blog" </> int)
-        , format Search (s "search" </> string)
-        ]
+mapHelp : (a -> b) -> State a -> State b
+mapHelp func {visited, unvisited, params, value} =
+  { visited = visited
+  , unvisited = unvisited
+  , params = params
+  , value = func value
+  }
 
-The `desiredPage` parser will first try to match things like `/blog/42` and if
-that fails it will try to match things like `/search/badgers`. It fails if none
-of the parsers succeed.
--}
+
 oneOf : List (Parser a b) -> Parser a b
-oneOf choices =
-  Parser (oneOfHelp choices)
+oneOf parsers =
+  Parser <| \state ->
+    List.concatMap (\(Parser parser) -> parser state) parsers
 
 
-oneOfHelp : List (Parser a b) -> Chunks -> a -> Result String (Chunks, b)
-oneOfHelp choices chunks formatter =
-  case choices of
+top : Parser a a
+top =
+  Parser <| \state -> [state]
+
+
+
+-- QUERY PARAMETERS
+
+
+type QueryParser a b =
+  QueryParser (State a -> List (State b))
+
+
+infixl 8 <?>
+
+
+(<?>) : Parser a b -> QueryParser b c -> Parser a c
+(<?>) (Parser parser) (QueryParser queryParser) =
+  Parser <| \state ->
+    List.concatMap queryParser (parser state)
+
+
+stringParam : String -> QueryParser (Maybe String -> a) a
+stringParam name =
+  customParam name identity
+
+
+intParam : String -> QueryParser (Maybe Int -> a) a
+intParam name =
+  customParam name intParamHelp
+
+
+intParamHelp : Maybe String -> Maybe Int
+intParamHelp maybeValue =
+  case maybeValue of
+    Nothing ->
+      Nothing
+
+    Just value ->
+      Result.toMaybe (String.toInt value)
+
+
+customParam : String -> (Maybe String -> a) -> QueryParser (a -> b) b
+customParam key func =
+  QueryParser <| \{ visited, unvisited, params, value } ->
+    [ State visited unvisited params (value (func (Dict.get key params))) ]
+
+
+-- jsonParam : String -> Decoder a -> QueryParser (Maybe a -> b) b
+-- enumParam : String -> Dict String a -> QueryParser (Maybe a -> b) b
+
+
+
+-- RUN A PARSER
+
+
+parsePath : Parser (a -> a) a -> Navigation.Location -> Maybe a
+parsePath parser location =
+  parse parser location.pathname (parseParams location.search)
+
+
+parseHash : Parser (a -> a) a -> Navigation.Location -> Maybe a
+parseHash parser location =
+  parse parser (String.dropLeft 1 location.hash) (parseParams location.search)
+
+
+
+-- PARSER HELPERS
+
+
+parse : Parser (a -> a) a -> String -> Dict String String -> Maybe a
+parse (Parser parser) url params =
+  parseHelp <| parser <|
+    { visited = []
+    , unvisited = splitUrl url
+    , params = params
+    , value = identity
+    }
+
+
+parseHelp : List (State a) -> Maybe a
+parseHelp states =
+  case states of
     [] ->
-      Err "Tried many parsers, but none of them worked!"
+      Nothing
 
-    Parser parser :: otherParsers ->
-      case parser chunks formatter of
-        Err _ ->
-          oneOfHelp otherParsers chunks formatter
+    state :: rest ->
+      case state.unvisited of
+        [] ->
+          Just state.value
 
-        Ok answerPair ->
-          Ok answerPair
+        [""] ->
+          Just state.value
+
+        _ ->
+          parseHelp rest
 
 
-{-| Customize an existing parser. Perhaps you want a parser that matches any
-string, but gives you the result with all lower-case letters:
+splitUrl : String -> List String
+splitUrl url =
+  case String.split "/" url of
+    "" :: segments ->
+      segments
 
-    import String
+    segments ->
+      segments
 
-    caseInsensitiveString : Parser (String -> a) a
-    caseInsensitiveString =
-      format String.toLower string
 
-    -- String.toLower : String -> String
-    -- string : Parser (String -> a) a
+parseParams : String -> Dict String String
+parseParams queryString =
+  queryString
+    |> String.dropLeft 1
+    |> String.split "&"
+    |> List.filterMap toKeyValuePair
+    |> Dict.fromList
 
-I recommend working through how the type variables in `format` would get
-unified to get a better idea of things, but an intuition of how to use things
-is probably enough.
--}
-format : formatter -> Parser formatter a -> Parser (a -> result) result
-format input (Parser parse) =
-  Parser <| \chunks func ->
-    case parse chunks input of
-      Err msg ->
-        Err msg
 
-      Ok (newChunks, value) ->
-        Ok (newChunks, func value)
+toKeyValuePair : String -> Maybe (String, String)
+toKeyValuePair segment =
+  case String.split "=" segment of
+    [key, value] ->
+      Maybe.map2 (,) (Http.decodeUri key) (Http.decodeUri value)
+
+    _ ->
+      Nothing
