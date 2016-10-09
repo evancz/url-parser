@@ -62,7 +62,7 @@ an ID number and a name, we might write something like this:
 
     result : Result String (Int, String)
     result =
-      parse (,) blog "/blog/42/cat-herding-techniques"
+      parse (,) blog "blog/42/cat-herding-techniques"
 
     -- result == OK (42, "cat-herding-techniques")
 
