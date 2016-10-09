@@ -240,8 +240,8 @@ oneOf parsers =
         ]
 
     parsePath (s "blog" </> blogRoute) location
-    -- /blog/                 ==>  Just Overview
-    -- /blog/post/42          ==>  Just (Post 42)
+    -- /blog/         ==>  Just Overview
+    -- /blog/post/42  ==>  Just (Post 42)
 -}
 top : Parser a a
 top =
@@ -252,24 +252,56 @@ top =
 -- QUERY PARAMETERS
 
 
+{-| Turn query parameters like `?name=tom&age=42` into nice Elm data.
+-}
 type QueryParser a b =
   QueryParser (State a -> List (State b))
 
 
-infixl 8 <?>
+{-| Parse some query parameters.
 
+    type Route = Overview (Maybe String) | Post Int
 
+    route : Parser (Route -> a) a
+    route =
+      oneOf
+        [ s "blog" <?> stringParam "search"
+        , s "blog" </> int
+        ]
+
+    parsePath route location
+    -- /blog/              ==>  Just (Overview Nothing)
+    -- /blog/?search=cats  ==>  Just (Overview (Just "cats"))
+    -- /blog/42            ==>  Just (Post 42)
+-}
 (<?>) : Parser a b -> QueryParser b c -> Parser a c
 (<?>) (Parser parser) (QueryParser queryParser) =
   Parser <| \state ->
     List.concatMap queryParser (parser state)
 
 
+infixl 8 <?>
+
+
+{-| Parse a query parameter as a `String`.
+
+    parsePath (s "blog" <?> stringParam "search") location
+    -- /blog/              ==>  Just (Overview Nothing)
+    -- /blog/?search=cats  ==>  Just (Overview (Just "cats"))
+-}
 stringParam : String -> QueryParser (Maybe String -> a) a
 stringParam name =
   customParam name identity
 
 
+{-| Parse a query parameter as an `Int`. Maybe you want to show paginated
+search results. You could have a `start` query parameter to say which result
+should appear first.
+
+    parsePath (s "results" <?> intParam "start") location
+    -- /results           ==>  Just Nothing
+    -- /results?start=10  ==>  Just (Just 10)
+-}
 intParam : String -> QueryParser (Maybe Int -> a) a
 intParam name =
   customParam name intParamHelp
@@ -285,25 +317,38 @@ intParamHelp maybeValue =
       Result.toMaybe (String.toInt value)
 
 
+{-| Create a custom query parser. You could create parsers like these:
+
+    jsonParam : String -> Decoder a -> QueryParser (Maybe a -> b) b
+    enumParam : String -> Dict String a -> QueryParser (Maybe a -> b) b
+
+It may be worthwhile to have these in this library directly. If you need
+either one in practice, please open an issue [here][] describing your exact
+scenario. We can use that data to decide if they should be added.
+
+[here]: https://github.com/evancz/url-parser/issues
+-}
 customParam : String -> (Maybe String -> a) -> QueryParser (a -> b) b
 customParam key func =
   QueryParser <| \{ visited, unvisited, params, value } ->
     [ State visited unvisited params (value (func (Dict.get key params))) ]
 
 
--- jsonParam : String -> Decoder a -> QueryParser (Maybe a -> b) b
--- enumParam : String -> Dict String a -> QueryParser (Maybe a -> b) b
-
-
 
 -- RUN A PARSER
 
 
+{-| Parse based on `location.pathname` and `location.search`. This parser
+ignores the hash entirely.
+-}
 parsePath : Parser (a -> a) a -> Navigation.Location -> Maybe a
 parsePath parser location =
   parse parser location.pathname (parseParams location.search)
 
 
+{-| Parse based on `location.hash` and `location.search`. This parser
+ignores the normal path entirely.
+-}
 parseHash : Parser (a -> a) a -> Navigation.Location -> Maybe a
 parseHash parser location =
   parse parser (String.dropLeft 1 location.hash) (parseParams location.search)
