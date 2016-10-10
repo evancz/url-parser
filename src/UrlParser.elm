@@ -260,19 +260,19 @@ type QueryParser a b =
 
 {-| Parse some query parameters.
 
-    type Route = Overview (Maybe String) | Post Int
+    type Route = BlogList (Maybe String) | BlogPost Int
 
     route : Parser (Route -> a) a
     route =
       oneOf
-        [ s "blog" <?> stringParam "search"
-        , s "blog" </> int
+        [ map BlogList (s "blog" <?> stringParam "search")
+        , map BlogPost (s "blog" </> int)
         ]
 
     parsePath route location
-    -- /blog/              ==>  Just (Overview Nothing)
-    -- /blog/?search=cats  ==>  Just (Overview (Just "cats"))
-    -- /blog/42            ==>  Just (Post 42)
+    -- /blog/              ==>  Just (BlogList Nothing)
+    -- /blog/?search=cats  ==>  Just (BlogList (Just "cats"))
+    -- /blog/42            ==>  Just (BlogPost 42)
 -}
 (<?>) : Parser a b -> QueryParser b c -> Parser a c
 (<?>) (Parser parser) (QueryParser queryParser) =
