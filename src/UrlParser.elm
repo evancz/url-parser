@@ -24,7 +24,6 @@ module UrlParser exposing
 import Dict exposing (Dict)
 import Http
 import Navigation
-import String
 
 
 
