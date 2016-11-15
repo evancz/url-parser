@@ -36,7 +36,7 @@ To see an example of this library paired with `elm-lang/navigation`, check out t
 ## Testing
 
 ```
-yarn install
+npm install
 npm test
 ```
 
