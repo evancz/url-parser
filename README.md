@@ -59,6 +59,13 @@ Notice that we are turning URLs into nice [union types](https://guide.elm-lang.o
 Check out the `examples/` directory of this repo to see this in use with `elm-lang/navigation`.
 
 
+## Testing
+
+```
+npm install
+npm test
+```
+
 ## Background
 
 I first saw this general idea in Chris Done&rsquo;s [formatting][] library. Based on that, Noah and I outlined the API you see in this library. Noah then found Rudi Grinberg&rsquo;s [post][] about type safe routing in OCaml. It was exactly what we were going for. We had even used the names `s` and `(</>)` in our draft API! In the end, we ended up using the &ldquo;final encoding&rdquo; of the EDSL that had been left as an exercise for the reader. Very fun to work through!
