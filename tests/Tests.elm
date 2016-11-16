@@ -4,12 +4,51 @@ import UrlParser exposing (..)
 import Navigation exposing (Location)
 import Test exposing (..)
 import Expect
-import String
 
 
-type Kind
-    = Path
-    | Hash
+
+-- TESTS
+
+
+all : Test
+all =
+    describe "UrlParser"
+        [ describe "Basic Parsing" testParsing
+        ]
+
+
+testParsing =
+    [ parserTest "Home" "" HomeRoute
+    , parserTest "About" "about" AboutRoute
+    , parserTest "Token" "token/abc" (TokenRoute "abc")
+    , parserTest "Users" "users" (UsersRoutes UsersRoute)
+    , parserTest "User" "users/2" (UsersRoutes (UserRoute 2))
+    , parserTest "Edit" "users/2/edit" (UsersRoutes (UserEditRoute 2))
+    ]
+
+
+parserTest name path expectedRoute =
+    describe name
+        [ test (name ++ " in path") <|
+            \() ->
+                Expect.equal
+                    (Just expectedRoute)
+                    (parsePath routeParser { newLocation | pathname = "/" ++ path })
+        , test (name ++ " in hash") <|
+            \() ->
+                Expect.equal
+                    (Just expectedRoute)
+                    (parseHash routeParser { newLocation | hash = "#/" ++ path })
+        , test (name ++ "in hash without leading slash") <|
+            \() ->
+                Expect.equal
+                    (Just expectedRoute)
+                    (parseHash routeParser { newLocation | hash = "#" ++ path })
+        ]
+
+
+
+-- ROUTES
 
 
 type alias UserId =
@@ -30,6 +69,14 @@ type MainRoute
     | NotFoundRoute
 
 
+
+-- PARSERS
+
+
+routeParser =
+    oneOf mainMatchers
+
+
 usersMatchers =
     [ map UserEditRoute (int </> s "edit")
     , map UserRoute (int)
@@ -45,8 +92,8 @@ mainMatchers =
     ]
 
 
-matchers =
-    oneOf mainMatchers
+
+-- DUMMY LOCATION
 
 
 newLocation : Location
@@ -63,105 +110,3 @@ newLocation =
     , search = ""
     , username = ""
     }
-
-
-matchersTest : Test
-matchersTest =
-    let
-        inputs =
-            [ ( "Home page in pathname"
-              , Path
-              , "/"
-              , Just HomeRoute
-              )
-            , ( "Home page in hash"
-              , Hash
-              , "#/"
-              , Just HomeRoute
-              )
-            , ( "Home page in hash"
-              , Hash
-              , ""
-              , Just HomeRoute
-              )
-            , ( "About page in pathname"
-              , Path
-              , "/about"
-              , Just AboutRoute
-              )
-            , ( "About page in hash"
-              , Hash
-              , "#/about"
-              , Just AboutRoute
-              )
-            , ( "Token page in pathname"
-              , Path
-              , "/token/abc"
-              , Just (TokenRoute "abc")
-              )
-            , ( "Token page in hash"
-              , Hash
-              , "#/token/abc"
-              , Just (TokenRoute "abc")
-              )
-            , ( "Users in pathname"
-              , Path
-              , "/users"
-              , Just (UsersRoutes UsersRoute)
-              )
-            , ( "Users in hash"
-              , Hash
-              , "#/users"
-              , Just (UsersRoutes UsersRoute)
-              )
-            , ( "User in pathname"
-              , Path
-              , "/users/2"
-              , Just (UsersRoutes (UserRoute 2))
-              )
-            , ( "User in hash"
-              , Hash
-              , "#/users/2"
-              , Just (UsersRoutes (UserRoute 2))
-              )
-            , ( "User Edit in pathname"
-              , Path
-              , "/users/2/edit"
-              , Just (UsersRoutes (UserEditRoute 2))
-              )
-            , ( "User Edit in hash"
-              , Hash
-              , "#/users/2/edit"
-              , Just (UsersRoutes (UserEditRoute 2))
-              )
-            ]
-
-        run ( testCase, kind, path, expectedRoute ) =
-            test testCase
-                <| \() ->
-                    let
-                        location =
-                            case kind of
-                                Path ->
-                                    { newLocation | pathname = path }
-
-                                Hash ->
-                                    { newLocation | hash = path }
-
-                        actualRoute =
-                            case kind of
-                                Path ->
-                                    parsePath matchers location
-
-                                Hash ->
-                                    parseHash matchers location
-                    in
-                        Expect.equal expectedRoute actualRoute
-    in
-        describe "Matchers" (List.map run inputs)
-
-
-all : Test
-all =
-    describe "UrlParser"
-        [ matchersTest ]
