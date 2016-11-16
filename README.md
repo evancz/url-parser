@@ -9,33 +9,59 @@ It is designed to be used with `elm-lang/navigation` to help folks create single
 
 ## Examples
 
-Here is a parser that handles URLs like `/blog/42/whale-songs` where `42` can be any integer and `whale-songs` can be any string:
+Here is a simplified REPL session showing a parser in action:
 
 ```elm
-blog : Parser (Int -> String -> a) a
-blog =
-  s "blog" </> int </> string
+> import UrlParser exposing ((</>), s, int, string, parseHash)
+
+> parseHash (s "blog" </> int) { ... , hash = "#blog/42" }
+Just 42
+
+> parseHash (s "blog" </> int) { ... , hash = "#/blog/13" }
+Just 13
+
+> parseHash (s "blog" </> int) { ... , hash = "#/blog/hello" }
+Nothing
+
+> parseHash (s "search" </> string) { ... , hash = "#search/dogs" }
+Just "dogs"
+
+> parseHash (s "search" </> string) { ... , hash = "#/search/13" }
+Just "13"
+
+> parseHash (s "search" </> string) { ... , hash = "#/search" }
+Nothing
 ```
 
-Here is a slightly fancier example. This parser turns URLs like `/blog/42` and `/search/badger` into a nice structure that is easier to work with in Elm:
+Normally you have to put many of these parsers to handle all possible pages though! The following parser works on URLs like `/blog/42` and `/search/badger`:
 
 ```elm
-type DesiredPage = Blog Int | Search String
+import UrlParser exposing (Parser, (</>), s, int, string, map, oneOf, parseHash)
 
-desiredPage : Parser (DesiredPage -> a) a
-desiredPage =
+type Route = Blog Int | Search String
+
+route : Parser (Route -> a) a
+route =
   oneOf
-    [ format Blog (s "blog" </> int)
-    , format Search (s "search" </> string)
+    [ map Blog (s "blog" </> int)
+    , map Search (s "search" </> string)
     ]
+
+-- parseHash route { ... , hash = "#/blog/58" }    == Just (Blog 58)
+-- parseHash route { ... , hash = "#/search/cat" } == Just (Search "cat")
+-- parseHash route { ... , hash = "#/search/31" }  == Just (Search "31")
+-- parseHash route { ... , hash = "#/blog/cat" }   == Nothing
+-- parseHash route { ... , hash = "#/blog" }       == Nothing
 ```
 
-To see an example of this library paired with `elm-lang/navigation`, check out the `examples/` directory of this GitHub repo.
+Notice that we are turning URLs into nice [union types](https://guide.elm-lang.org/types/union_types.html), so we can use `case` expressions to work with them in a nice way.
+
+Check out the `examples/` directory of this repo to see this in use with `elm-lang/navigation`.
 
 
 ## Background
 
-I first saw this general idea in Chris Done&rsquo;s [formatting][] library. Based on that, Noah and I outlined the API you see in this library. Noah then found Rudi Grinberg&rsquo;s [post][] about type safe routing in OCaml. It was exactly what we were going for. We had even used the names `s` and `(</>)` in our draft API! In the end, we ended up using the &ldquo;final encoding&rdquo; of the EDSL that had been left as an exercise for the reader. Very fun to work through! 😃
+I first saw this general idea in Chris Done&rsquo;s [formatting][] library. Based on that, Noah and I outlined the API you see in this library. Noah then found Rudi Grinberg&rsquo;s [post][] about type safe routing in OCaml. It was exactly what we were going for. We had even used the names `s` and `(</>)` in our draft API! In the end, we ended up using the &ldquo;final encoding&rdquo; of the EDSL that had been left as an exercise for the reader. Very fun to work through!
 
 [formatting]: http://chrisdone.com/posts/formatting
 [post]: http://rgrinberg.com/posts/primitive-type-safe-routing/
