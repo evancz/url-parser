@@ -106,7 +106,7 @@ You can use it to define something like “only CSS files” like this:
     css : Parser (String -> a) a
     css =
       custom "CSS_FILE" <| \segment ->
-        if String.endsWith ".css" then
+        if String.endsWith ".css" segment then
           Ok segment
         else
           Err "Does not end with .css"
