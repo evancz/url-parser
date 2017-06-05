@@ -205,7 +205,7 @@ mapHelp func {visited, unvisited, params, value} =
         [ map Search  (s "search" </> string)
         , map Blog    (s "blog" </> int)
         , map User    (s "user" </> string)
-        , map Comment (s "user" </> string </> "comments" </> int)
+        , map Comment (s "user" </> string </> s "comments" </> int)
         ]
 
     parsePath route location
